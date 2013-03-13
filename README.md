@@ -1,4 +1,4 @@
-# FileAPI — a set of tools for working with files.
+﻿# FileAPI — a set of tools for working with files.
 
 
 <p align="center">
@@ -11,8 +11,9 @@
 ## Support
  * Multiupload: all browsers that support HTML5 or [Flash](#flash-settings)
  * Drag'n'Drop upload: files (HTML5) & directories (Chrome 21+)
+ * [Chunked](#chunked) file upload (HTML5)
  * Upload one file: all browsers
- * Working with Images: IE6+, FF 3.6+, Chrome 10+, Opera 11.1+, Safari 5.4+
+ * Working with [Images](#images): IE6+, FF 3.6+, Chrome 10+, Opera 11.1+, Safari 5.4+
     + crop, resize, preview & rotate (HTML5 or Flash)
     + auto orientation by exif (HTML5, if include FileAPI.exif.js or Flash)
 
@@ -84,7 +85,7 @@ FileAPI.event.on(input, 'change', function (evt){
 		var xhr = FileAPI.upload({
 			url: '...',
 			data: { foo: 'bar' }, // POST-data (iframe, flash, html5)
-			headers: { 'x-header': '...' }, // request headers (flash, html5)
+			headers: { 'x-header': '...' }, // request headers (html5)
 			files: {
 				files: FileAPI.filter(fileList, function (file){ return !/image/.test(file.type); }),
 				pictures: imageList
@@ -138,6 +139,7 @@ FileAPI.event.on(input, 'change', function (evt){
 * jQuery('#el').dnd(onHover, onDrop)
 
 
+<a name="images"></a>
 ### FileAPI.Image
 * .crop(width[, height])
 * .crop(x, y, width[, height])
@@ -160,28 +162,13 @@ FileAPI.event.on(input, 'change', function (evt){
 * FileAPI.support.`flash:Boolean`
 * FileAPI.support.`canvas:Boolean`
 * FileAPI.support.`dataURI:Boolean`
+* FileAPI.support.`chunked:Boolean`
 * FileAPI.each(`obj:Object|Array`, `fn:function`, `context:Mixed`)
 * FileAPI.extend(`dst:Object`, `src:Object`)`:Object`
 * FileAPI.filter(`list:Array`, `iterator:Function`)`:Array`
 * FileAPI.isFile(`file:Mixed`)`:Boolean`
 * FileAPI.toBinaryString(`str:Base64`)`:String`
 
-
-<a name="flash-settings"></a>
-### Flash settings
-```html
-	<script>
-		var FileAPI = {
-			// @required
-			  staticPath: '/js/' // @default: "./"
-
-			// @optional
-			, flashUrl: '/js/FileAPI.flash.swf' // @default: FileAPI.staticPath + "FileAPI.flash.swf"
-			, flashImageUrl: '/js/FileAPI.flash.image.swf' // @default: FileAPI.staticPath + "FileAPI.flash.image.swf"
-		};
-	</script>
-	<script src="/js/FileAPI.min.js"></script>
-```
 
 
 ---------------------------------------
@@ -220,7 +207,7 @@ function onDrop(evt){
 
 var el = document.getElementById('el');
 FileAPI.event.dnd(el, function (over/**Boolean*/, evt/**Event*/){
-	el.style.background = ever ? 'red' : '';
+	el.style.background = over ? 'red' : '';
 }, function (files/**Array*/, evt/**Event*/){
 	// ...
 });
@@ -315,6 +302,10 @@ var xhr = FileAPI.upload({
 		images: FileAPI.filter(files, function (file){ return /image/.test(file.type); }),
 		customFile: { file: 'generate.txt', blob: customFileBlob }
 	},
+
+	chunkSize: 0, // or chunk size in bytes, eg: FileAPI.MB*.5 (html5)
+	chunkUploadRetry: 0, // number of retries during upload chunks (html5)
+
 	imageTransform: {
 		maxWidth: 1024,
 		maxHeight: 768
@@ -419,7 +410,89 @@ FileAPI.upload({
 ```
 
 
-----
+-----
+
+
+<a name="flash-settings"></a>
+### Flash settings
+```html
+	<script>
+		var FileAPI = {
+			// @required
+			  staticPath: '/js/' // @default: "./"
+
+			// @optional
+			, flashUrl: '/js/FileAPI.flash.swf' // @default: FileAPI.staticPath + "FileAPI.flash.swf"
+			, flashImageUrl: '/js/FileAPI.flash.image.swf' // @default: FileAPI.staticPath + "FileAPI.flash.image.swf"
+		};
+	</script>
+	<script src="/js/FileAPI.min.js"></script>
+```
+
+#### Flash-request ([FileReference](http://help.adobe.com/en_US/FlashPlatform/reference/actionscript/3/flash/net/FileReference.html))
+The following sample HTTP POST request is sent from Flash Player to a server-side script if no parameters are specified:
+```
+  POST /handler.cfm HTTP/1.1
+  Accept: text/*
+  Content-Type: multipart/form-data;
+  boundary=----------Ij5ae0ae0KM7GI3KM7
+  User-Agent: Shockwave Flash
+  Host: www.example.com
+  Content-Length: 421
+  Connection: Keep-Alive
+  Cache-Control: no-cache
+
+  ------------Ij5GI3GI3ei4GI3ei4KM7GI3KM7KM7
+  Content-Disposition: form-data; name="Filename"
+
+  MyFile.jpg
+  ------------Ij5GI3GI3ei4GI3ei4KM7GI3KM7KM7
+  Content-Disposition: form-data; name="Filedata"; filename="MyFile.jpg"
+  Content-Type: application/octet-stream
+
+  FileDataHere
+  ------------Ij5GI3GI3ei4GI3ei4KM7GI3KM7KM7
+  Content-Disposition: form-data; name="Upload"
+
+  Submit Query
+  ------------Ij5GI3GI3ei4GI3ei4KM7GI3KM7KM7--
+```
+
+
+
+-----
+
+
+
+<a name="chunked"></a>
+### Chunked file upload (html5)
+```js
+FileAPI.upload({
+	  url: '...'
+	, files: fileList
+	, chunkSize: .5 * FileAPI.MB // 512KB
+	, chunkUploadRetry: 1
+	, complete: function (err, xhr){}
+});
+```
+
+Client and server communicate to each other using the following HTTP headers and status codes.
+
+Client explicitly sets the following headers:
+* [Content-Range](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.16): bytes \<start-offset\>-\<end-offset\>/\<total\>
+* [Content-Disposition](http://www.w3.org/Protocols/rfc2616/rfc2616-sec19.html#sec19.5.1): attachment; filename=\<file-name\>
+
+Any other headers are set by a target browser and are not used by client.
+Library does not provide any facilities to track a file uniqueness across requests, it's left on developer's consideration.
+
+Client recognizes the following response codes:
+* 200, 201 - chunk is successfully saved
+* 416, 500 - recoverable error, library tries to resend chunk 'chunkUploadRetry' times then fails
+
+All the other codes - fatal error, user's involvement is recommend.
+
+
+-----
 
 
 
@@ -454,7 +527,7 @@ FileAPI.upload({
 ```php
 <?
 	header('Access-Control-Allow-Methods: POST, OPTIONS');
-	header('Access-Control-Allow-Headers: Origin, X-Requested-With'); // and other custom headers
+	header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Range, Content-Disposition, Content-Type'); // and other custom headers
 	header('Access-Control-Allow-Origin: ' . $_SERVER['HTTP_ORIGIN']); // a comma-separated list of domains
 
 	if( $_SERVER['REQUEST_METHOD'] == 'OPTIONS' ){
@@ -488,6 +561,8 @@ FileAPI.upload({
 })(this.parent, "<?=htmlspecialchars($_POST['callback'])?>");
 </script>
 ```
+
+
 
 ---
 
@@ -595,6 +670,31 @@ FileAPI.upload({
 
 
 ## Changelog
+### 1.2.3
+ * [#77](https://github.com/mailru/FileAPI/pull/77): Fixed flash.abort(), [#75](https://github.com/mailru/FileAPI/issues/75)
+ * - `FileAPI.addMime`
+ * + `FileAPI.accept` — fallback for flash.
+
+
+### 1.2.2
+ * [#67](https://github.com/mailru/FileAPI/pull/67): Added correct httpStatus for upload fail, [#62](https://github.com/mailru/FileAPI/pull/68)
+ * [#68](https://github.com/mailru/FileAPI/pull/68) Added "Content-Type" for chunked upload, [#65](https://github.com/mailru/FileAPI/pull/65)
+ * [#69](https://github.com/mailru/FileAPI/issues/69): Fixed network down recovery
+ * Fixed progress event, [#66](https://github.com/mailru/FileAPI/issues/66)
+ * Increase flash stage size, [#73](https://github.com/mailru/FileAPI/pull/73)
+ * - array index from POST-param "name", [#72](https://github.com/mailru/FileAPI/issues/72)
+ * - dependency on FileAPI.Image for FileAPI.Flash
+
+
+### 1.2.1
+ * [#64](https://github.com/mailru/FileAPI/issues/64): Bufixed for [#63](https://github.com/mailru/FileAPI/issues/63)
+
+
+
+### 1.2.0
+ * [#57](https://github.com/mailru/FileAPI/issues/57): Chunked file upload
+
+
 ### 1.1.0
  * [#54](https://github.com/mailru/FileAPI/issues/54): added `FileAPI.flashUrl` and `FileAPI.flashImageUrl`
 
