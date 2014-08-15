@@ -1,0 +1,25 @@
+{
+	"name": "RubaXa/FileAPI",
+	"description": "A set of javascript tools for working with files",
+  "keywords": [
+    "js",
+    "front-end",
+    "framework",
+    "web",
+    "upload",
+    "multiupload"
+  ],
+  "homepage": "http://rubaxa.github.io/FileAPI/",
+	"license": "https://github.com/RubaXa/FileAPI/blob/gh-pages/LICENSE",
+  "authors": [
+      {
+          "name": "Lebedev Konstantin",
+          "email": "ibnrubaxa@gmail.com"
+      }
+  ],
+	"autoload": {
+		"psr-4": {
+			"RubaXa\\FileAPI\\": ""
+		}
+	}
+}
