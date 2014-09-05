@@ -2945,7 +2945,7 @@
 		}
 
 		if( has && /^file:/i.test(location) ){
-			api.log('[warn] Flash does not work on `file:` protocol.');
+			api.log('[warn] Flash does not work on \'file:\' protocol.');
 		}
 
 		return	has;
